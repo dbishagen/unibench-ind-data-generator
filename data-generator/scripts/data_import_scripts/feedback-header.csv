@@ -1,0 +1,1 @@
+feedback_id:ID,product_id:int,asin:string,brand_id:int,brand:string,feedback:string

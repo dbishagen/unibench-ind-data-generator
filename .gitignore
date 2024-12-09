@@ -1,0 +1,8 @@
+venv
+data-generator/data/*
+!data-generator/data/.gitkeep
+data-generator/docker/mongodb/mongodb_data
+data-generator/docker/mysql/mysql_data
+data-generator/docker/neo4j/neo4j_data
+data-generator/docker/postgres/postgres_data
+*.drawio.bkp
