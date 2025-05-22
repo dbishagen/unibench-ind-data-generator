@@ -1,1 +1,1 @@
-tag_id:ID,name:string,vendors:string[]
+tag_id:ID,name:string,vendors:string[],vendor_ids:int[]

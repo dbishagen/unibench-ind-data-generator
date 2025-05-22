@@ -1,0 +1,74 @@
+services:
+
+  neo4j:
+    image: neo4j:5.25.1
+    container_name: ind-neo4j
+    hostname: ind-neo4j
+    ports:
+      - "7474:7474"
+      - "7687:7687"
+    environment:
+      - NEO4J_AUTH=neo4j/neo4jpassword
+      - NEO4J_dbms_security_procedures_unrestricted=apoc.*
+      - NEO4J_ACCEPT_LICENSE_AGREEMENT=yes
+    volumes:
+      - type: bind
+        source: ./data-generator/docker/neo4j/neo4j_data
+        target: /data
+      - type: bind
+        source: ./data-generator/data/data_sf_0_0
+        target: /var/lib/neo4j/import/data
+        read_only: false
+      # - type: bind
+      #   source: ./data-generator/scripts/data_import_scripts
+      #   target: /var/lib/neo4j/import/meta-files
+      #   read_only: false
+    user: "1000:1000"
+
+
+  
+  mongodb:
+    image: mongo:8.0.0-rc11-jammy
+    container_name: ind-mongo
+    hostname: ind-mongo
+    ports:
+      - "27017:27017"
+    volumes:
+      - type: bind
+        source: ./data-generator/docker/mongodb/mongodb_data
+        target: /data/db
+      - type: bind
+        source: ./data-generator/data/data_sf_0_0
+        target: /import
+        read_only: true
+      # - type: bind
+      #   source: ./data-generator/scripts/data_import_scripts
+      #   target: /import_scripts
+      #   read_only: true
+    user: "1000:1000"
+
+
+  
+  postgres:
+    image: postgres:17.1
+    container_name: ind-postgres
+    hostname: ind-postgres
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_PASSWORD=root
+      - POSTGRES_USER=postgres
+    volumes:
+      - type: bind
+        source: ./data-generator/docker/postgres/postgres_data
+        target: /var/lib/postgresql/data
+      - type: bind
+        source: ./data-generator/data/data_sf_0_0
+        target: /import
+        read_only: true
+      # - type: bind
+      #   source: ./data-generator/scripts/data_import_scripts
+      #   target: /import_scripts
+      #   read_only: true
+    user: "1000:1000"
+

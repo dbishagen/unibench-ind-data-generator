@@ -1,21 +1,31 @@
 #!/bin/bash
 
 
-CONTAINER_REGISTRY="registry.gitlab.com/dbishagen/unibench-ind-data-generator"
+# script path
+SCRIPT_PATH=$(dirname $(realpath -s $0))
+
+
+#CONTAINER_REGISTRY="registry.gitlab.com/dbishagen/unibench-ind-data-generator"
+
+## Github
+CONTAINER_REGISTRY="ghcr.io/dbishagen"
+CONTAINER_LABEL_SOURCE="https://github.com/dbishagen/unibench-ind-data-generator"
+
 DOCKER_IMAGE_MONGO_NAME="mongo"
 #DOCKER_IMAGE_MONGO_VERSION="4.4.29-focal-unibench-"
 DOCKER_IMAGE_MONGO_VERSION="8.0.0-rc11-jammy-unibench-"
+
 DOCKER_IMAGE_MYSQL_NAME="mysql"
 DOCKER_IMAGE_MYSQL_VERSION="9.1.0-unibench-"
+
 DOCKER_IMAGE_NEO4J_NAME="neo4j"
 DOCKER_IMAGE_NEO4J_VERSION="5.25.1-unibench-"
+
 DOCKER_IMAGE_POSTGRES_NAME="postgres"
 DOCKER_IMAGE_POSTGRES_VERSION="17.1-unibench-"
 
 
-# script path
-SCRIPT_PATH=$(dirname $(realpath -s $0))
-
+# Path to folder containing the database data mounted in the docker containers
 MONGODB_DATA_DIR_PATH=$(realpath -s ${SCRIPT_PATH}/docker/mongodb/mongodb_data)
 MYSQL_DATA_DIR_PATH=$(realpath -s ${SCRIPT_PATH}/docker/mysql/mysql_data)
 NEO4J_DATA_DIR_PATH=$(realpath -s ${SCRIPT_PATH}/docker/neo4j/neo4j_data)
@@ -29,12 +39,19 @@ function generate_data()
     # check if the folder data_sf_scale_str exist under the data directory
     if [ -d "$2" ]; then
         echo "Data for scale $1 already exists!"
-        exit 0
+        #exit 0
+    else
+        # create the folder data_sf_scale_str
+        echo "Creating data folder $2"
+        mkdir -p $2
     fi
-    # create the folder data_sf_scale_str
-    mkdir -p $2
+
     # generate data
-    python ${SCRIPT_PATH}/scripts/gen-data.py $1
+    if [[ "$(which python-venv.sh)" != "" ]]; then
+        python-venv.sh python ${SCRIPT_PATH}/scripts/gen-data.py $1
+    else
+        python3 ${SCRIPT_PATH}scripts/gen-data.py $1
+    fi
 }
 
 
@@ -91,25 +108,37 @@ function build_docker_image()
             "mongodb")
                 cd ${MONGODB_DATA_DIR_PATH}/../
                 docker image build -t \
-                ${CONTAINER_REGISTRY}/${DOCKER_IMAGE_MONGO_NAME}:${DOCKER_IMAGE_MONGO_VERSION}${scale} .
+                ${CONTAINER_REGISTRY}/${DOCKER_IMAGE_MONGO_NAME}:${DOCKER_IMAGE_MONGO_VERSION}${scale} \
+                --label "org.opencontainers.image.source=${CONTAINER_LABEL_SOURCE}" \
+                --label "org.opencontainers.image.licenses=MIT" \
+                .
                 cd ${SCRIPT_PATH}
                 ;;
             "mysql")
                 cd ${MYSQL_DATA_DIR_PATH}/../
                 docker image build -t \
-                ${CONTAINER_REGISTRY}/${DOCKER_IMAGE_MYSQL_NAME}:${DOCKER_IMAGE_MYSQL_VERSION}${scale} .
+                ${CONTAINER_REGISTRY}/${DOCKER_IMAGE_MYSQL_NAME}:${DOCKER_IMAGE_MYSQL_VERSION}${scale} \
+                --label "org.opencontainers.image.source=${CONTAINER_LABEL_SOURCE}" \
+                --label "org.opencontainers.image.licenses=MIT" \
+                .
                 cd ${SCRIPT_PATH}
                 ;;
             "neo4j")
                 cd ${NEO4J_DATA_DIR_PATH}/../
                 docker image build -t \
-                ${CONTAINER_REGISTRY}/${DOCKER_IMAGE_NEO4J_NAME}:${DOCKER_IMAGE_NEO4J_VERSION}${scale} .
+                ${CONTAINER_REGISTRY}/${DOCKER_IMAGE_NEO4J_NAME}:${DOCKER_IMAGE_NEO4J_VERSION}${scale} \
+                --label "org.opencontainers.image.source=${CONTAINER_LABEL_SOURCE}" \
+                --label "org.opencontainers.image.licenses=MIT" \
+                .
                 cd ${SCRIPT_PATH}
                 ;;
             "postgres")
                 cd ${POSTGRES_DATA_DIR_PATH}/../
                 docker image build -t \
-                ${CONTAINER_REGISTRY}/${DOCKER_IMAGE_POSTGRES_NAME}:${DOCKER_IMAGE_POSTGRES_VERSION}${scale} .
+                ${CONTAINER_REGISTRY}/${DOCKER_IMAGE_POSTGRES_NAME}:${DOCKER_IMAGE_POSTGRES_VERSION}${scale} \
+                --label "org.opencontainers.image.source=${CONTAINER_LABEL_SOURCE}" \
+                --label "org.opencontainers.image.licenses=MIT" \
+                .
                 cd ${SCRIPT_PATH}
                 ;;
             *)
@@ -247,8 +276,8 @@ function main()
 
     # check if scale is set
     if [ -z "$scale" ]; then
-        echo "Error: scale is not set"
-        exit 1
+        echo "Scale is not set. Using default scale of 0.0"
+        scale=0.0
     fi
 
     # check if scale is a number >= 0 and a float
@@ -264,34 +293,37 @@ function main()
     printf "DATA_PATH: ${data_dir_path}\n"
     printf "TARGET_DBS: $dbs\n\n"
 
-    # generate the data if the flag is set
+
+    ## -- DATA GENERATION -- ##
+    ## -- generate the data if the flag is set
     if [ $generate -eq 1 ]; then
         generate_data $scale $data_dir_path
     fi
 
-    # check if dbs is set
+    ## -- DATA IMPORT -- ##
+    ## -- check if dbs flag is set and import the data into the databases
     if ! [ -z "$dbs" ]; then
         # check if dbs is a list with at least one element
         if ! [[ $dbs =~ ^[a-zA-Z0-9_]+(,[a-zA-Z0-9_]+)*$ ]]; then
             echo "Error: dbs is not a list"
             exit 1
         else
-            # import the data into the databases if the flag is set
+            # import the data into the databases
             if [ $import_dbs -eq 1 ]; then
                 import_data_into_dbs $dbs $data_dir_path
             fi
 
-            # build the docker image if the flag is set
+            # build the docker image
             if [ $build_docker_image -eq 1 ]; then
                 build_docker_image $dbs
             fi
 
-            # push the docker image if the flag is set
+            # push the docker image
             if [ $push_docker_image -eq 1 ]; then
                 push_docker_image $dbs
             fi
 
-            # delete the docker image if the flag is set
+            # delete the docker
             if [ $delete_docker_image -eq 1 ]; then
                 delete_docker_image $dbs
             fi

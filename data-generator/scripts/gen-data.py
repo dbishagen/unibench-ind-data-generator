@@ -11,12 +11,18 @@ import sys
 import csv
 import sys
 import os
+import copy
+import shutil
+
+from bson import ObjectId
 
 
 fake = Faker()
 
+
 # Entity types
 customers = []
+persons = []
 vendors = []
 products = []
 orders = []
@@ -36,10 +42,10 @@ post_has_tag_random_range = 8
 tag_vendor_random_range = 4
 
 
-# customer_id_start_value = 1000000000000
-# order_id_start_value = 2000000000000
-# post_id_start_value = 3000000000000
-# tag_id_start_value = 4000000000000
+customer_id_start_value = 1000000000000
+#order_id_start_value = 2000000000000
+post_id_start_value = 3000000000000
+tag_id_start_value = 4000000000000
 
 feedback_id_counter = 5000000000000
 
@@ -73,10 +79,11 @@ def gen_customer():
     global person_has_interest_random_range
     for idx in range(num_unibench['person']):
         obj = {} 
-        obj['customer_id'] = idx + 1000000000000
-        obj['first_name'] = fake.first_name()
-        obj['last_name'] = fake.last_name()
+        obj['customer_id'] = idx + customer_id_start_value
+        #obj['first_name'] = fake.first_name()
+        #obj['last_name'] = fake.last_name()
         obj['mail'] = fake.ascii_email()
+        obj['username'] = fake.user_name()
 
         obj['has_interest'] = []
         if len(tags) < person_has_interest_random_range:
@@ -91,24 +98,24 @@ def gen_customer():
             s = f"Customers: {round(idx/num_unibench['person']*100,2)}%"
             print(s, end='\r', flush=True) 
     print("Customers done                ")
-    # add person knows person relationship
+    ## -- add person knows person relationship
     #_gen_person_knows_person_relationship()
 
 
 
 
-def _gen_person_knows_person_relationship():
-    # add person knows person relationship
-    customers_sample = random.sample(range(0, len(customers)), random.randrange((int(num_unibench['person']/100*75)),len(customers)+1))
-    for idx in customers_sample:
-        knows = random.sample(range(0, len(customers)), random.randrange(1,16))
-        if idx in knows: knows.remove(idx)
-        customers[idx]['knows'] = list(map(lambda i: { "$numberLong": f"{i}" }, knows))
+# def _gen_person_knows_person_relationship():
+#     # add person knows person relationship
+#     customers_sample = random.sample(range(0, len(customers)), random.randrange((int(num_unibench['person']/100*75)),len(customers)+1))
+#     for idx in customers_sample:
+#         knows = random.sample(range(0, len(customers)), random.randrange(1,16))
+#         if idx in knows: knows.remove(idx)
+#         customers[idx]['knows'] = list(map(lambda i: { "$numberLong": f"{i}" }, knows))
 
-        if idx % 100 == 0:
-            s = f"Customers knows Customers: {round(idx/len(customers_sample)*100,2)}%"
-            print(s, end='\r', flush=True)       
-    print("Customers knows Customers done                ")
+#         if idx % 100 == 0:
+#             s = f"Customers knows Customers: {round(idx/len(customers_sample)*100,2)}%"
+#             print(s, end='\r', flush=True)       
+#     print("Customers knows Customers done                ")
 
 
 
@@ -176,24 +183,36 @@ def gen_orders_and_invoices():
         order_obj = {}
         invoice_obj = {}
 
-        invoice_obj['order_id'] = idx + 2000000000000
-        order_obj['order_id'] = { "$numberLong": f"{idx + 2000000000000}" } 
+        #invoice_obj['order_id'] = idx + order_id_start_value
+        #order_obj['order_id'] = { "$numberLong": f"{idx + order_id_start_value}" } 
+
+        invoice_obj['order_id'] = f"{ObjectId()}"
+        order_obj['_id'] = { "$oid": f"{invoice_obj['order_id']}" }
 
         # add customer_id
         customer_obj = customers[random.randrange(0,len(customers))]
-        order_obj['customer_id'] = { "$numberLong": f"{customer_obj['customer_id']}" }  
+        order_obj['c_id'] = { "$numberLong": f"{customer_obj['customer_id']}" }
+
+        ## optional username
+        if random.random() < 0.5:
+            #order_obj['c_mail'] = customer_obj['mail']
+            order_obj['username'] = customer_obj['username']
+            invoice_obj['username'] = customer_obj['username']
+        else:
+            invoice_obj['username'] = 'null'
+
         invoice_obj['customer_id'] = customer_obj['customer_id']
-        
         #order_obj['order_date'] = { "$date" : { "$numberLong": f"{fake.date_object().strftime('%s')}" } }
-        order_obj['order_line'] = []
+
+        order_obj['order_item'] = []
         total_price = 0
         for i in range(random.randint(1, 4)):
             order_line_obj = {}
             product_obj = products[random.randrange(0,len(products))]
             #order_line_obj['asin'] = product_obj['asin']
             order_line_obj['product_id'] = product_obj['product_id']
-            order_line_obj['asin'] = product_obj['asin']
-            order_line_obj['title'] = product_obj['title']
+            #order_line_obj['asin'] = product_obj['asin']
+            order_line_obj['product_title'] = product_obj['title']
             order_line_obj['price'] = product_obj['price']
 
             #order_line_obj['brand'] = product_obj['brand']
@@ -202,18 +221,18 @@ def gen_orders_and_invoices():
                 "brand": product_obj['brand']
             }
 
-            order_obj['order_line'].append(order_line_obj)
+            order_obj['order_item'].append(order_line_obj)
             total_price += float(product_obj['price']['$numberDouble'])
 
-        order_obj['total_price'] = { "$numberDouble": f"{round(total_price,2)}" }
+        #order_obj['total_price'] = { "$numberDouble": f"{round(total_price,2)}" }
         invoice_obj['total_price'] = round(total_price,2)
-        #order_obj['number_of_items'] = len(order_obj['order_line'])
-        invoice_obj['number_of_items'] = len(order_obj['order_line'])
+        #order_obj['number_of_items'] = len(order_obj['order_item'])
+        invoice_obj['number_of_items'] = len(order_obj['order_item'])
 
         orders.append(order_obj)
         invoices.append(invoice_obj)
 
-        _gen_order_feedback(order_obj)
+        #_gen_order_feedback(order_obj)
 
         if idx % 100 == 0:
             s = f"Orders: {round(idx/num_unibench['order']*100,2)}%"
@@ -224,10 +243,10 @@ def gen_orders_and_invoices():
 
 
 def _gen_order_feedback(order_obj):
-    order_len = len(order_obj['order_line'])
+    order_len = len(order_obj['order_item'])
     order_feedbacks = random.randint(1, order_len)
     for i in range(order_feedbacks):
-        order_line_obj = order_obj['order_line'][i]
+        order_line_obj = order_obj['order_item'][i]
         feedback_obj = {}
         global feedback_id_counter
         feedback_obj['feedback_id'] = feedback_id_counter
@@ -250,13 +269,14 @@ def gen_posts():
     global post_has_tag_random_range
     for idx in range(num_unibench['post']):
         post_obj = {}
-        post_obj['post_id'] = idx + 3000000000000
+        post_obj['post_id'] = idx + post_id_start_value
 
         customer_obj = customers[random.randrange(0,len(customers))]
         post_obj['person_id'] = customer_obj['customer_id']
 
         #post_obj['date'] = { "$date" : { "$numberLong": f"{fake.date_object().strftime('%s')}" } }
         #post_obj['title'] = fake.sentence()
+
         post_obj['content'] = fake.paragraph(nb_sentences=random.randint(4, 16))
         post_obj['length'] = len(post_obj['content'])
 
@@ -284,19 +304,24 @@ def gen_tags():
     global tag_vendor_random_range
     for idx in range(num_unibench['tag']):
         tag_obj = {}
-        tag_obj['tag_id'] = idx + 4000000000000
+        tag_obj['tag_id'] = idx + tag_id_start_value
 
         tag_obj['name'] = fake.word()
         if len(vendors) < tag_vendor_random_range:
             tag_vendor_random_range = len(vendors)
         vendor_sample = random.sample(range(0, len(vendors)), random.randrange(1,tag_vendor_random_range))
         vendor_list = []
+        vendor_ids_list = []
         for idx in vendor_sample:
             vendor_list.append(vendors[idx]['vendor'])
+            vendor_ids_list.append(str(vendors[idx]['vendor_id']))
         
         # NOTE: Convert list to string for csv export and import into neo4j
         vendor_list_str = ';'.join(vendor_list)
         tag_obj['vendors'] = vendor_list_str
+
+        vendor_ids_list_str = ';'.join(vendor_ids_list)
+        tag_obj['vendor_ids'] = vendor_ids_list_str
         
         tags.append(tag_obj)
 
@@ -402,13 +427,29 @@ def main(argv):
 
     # set folder name and path
     folder_name = "data_sf_" + str(scale).replace('.','_')
+    #folder_name = "data_testing"
     data_folder = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'data')
     output_folder = os.path.join(data_folder, folder_name)
 
-    print(f"## Generating data with scale {scale} ##")
+    # if folder already exists remove all files in that folder
+    #if os.path.exists(output_folder):
+        # check if folder is empty
+    if len(os.listdir(output_folder)) != 0:
+        print(f"Removing all files in target folder!")
+        # remove all files in output folder
+        file_list = os.listdir(output_folder)
+        for file_name in file_list:
+            file_path = os.path.join(output_folder, file_name)
+            if os.path.isfile(file_path):
+                os.remove(file_path)
+            elif os.path.isdir(file_path):
+                shutil.rmtree(file_path)
+
+    print(f"\n## Generating data with scale {scale} ##")
     print(num_unibench)
     vendor_csv_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'vendor.csv')
     product_csv_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'product.csv')
+
     gen_vendors(vendor_csv_file)
     gen_tags()
     gen_customer()
@@ -420,22 +461,24 @@ def main(argv):
     gen_wrote_and_has_tag()
     gen_has_created()
 
-    # remove vendor_id from vendors
-    #for v in vendors:
-    #    del v['vendor_id']
+    persons = copy.deepcopy(customers)
+    for p in persons:
+        del p['username']
 
     print("Writing data to csv and json files...")
     write_csv_file(customers,os.path.join(output_folder,'customer.csv'),no_header=True)
+    write_csv_file(persons,os.path.join(output_folder,'person.csv'),no_header=True)
     write_csv_file(vendors,os.path.join(output_folder,'vendor.csv'))
     write_json_file(orders,os.path.join(output_folder,'order.json'))
     write_csv_file(invoices,os.path.join(output_folder,'invoice.csv'))
     write_csv_file(posts,os.path.join(output_folder,'post.csv'),no_header=True)
     write_csv_file(tags,os.path.join(output_folder,'tag.csv'),no_header=True)
-    write_csv_file(feedbacks,os.path.join(output_folder,'feedback.csv'),no_header=True)
+    #write_csv_file(feedbacks,os.path.join(output_folder,'feedback.csv'),no_header=True)
     write_csv_file(has_interest,os.path.join(output_folder,'HAS_INTEREST.csv'),no_header=True)
     write_csv_file(wrote,os.path.join(output_folder,'WROTE.csv'),no_header=True)
     write_csv_file(has_tag,os.path.join(output_folder,'HAS_TAG.csv'),no_header=True)
-    write_csv_file(has_created,os.path.join(output_folder,'HAS_CREATED.csv'),no_header=True)
+    # write_csv_file(has_created,os.path.join(output_folder,'HAS_CREATED.csv'),no_header=True)
+
     #write_json_file(products,os.path.join(output_folder,'product.json'))
     print("Data generation completed.")
 

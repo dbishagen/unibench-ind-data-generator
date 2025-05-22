@@ -14,4 +14,4 @@ docker run -it --rm \
 --mount type=bind,source=$(dirname $(realpath -s $0))/data_import_scripts,target=/var/lib/neo4j/import/meta-files \
 --mount type=bind,source=${TARGET_DIR},target=/data \
 neo4j:5.25.1 \
-bash /var/lib/neo4j/import/meta-files/import-neo4j.sh
+bash /var/lib/neo4j/import/meta-files/import_neo4j.sh
